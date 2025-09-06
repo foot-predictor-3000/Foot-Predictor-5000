@@ -454,14 +454,14 @@
                     model.add(tf.layers.dense({ units: 64, activation: 'relu', kernelRegularizer: tf.regularizers.l2({l2: 0.0001}) }));
                     model.add(tf.layers.dropout({ rate: 0.5 }));
                     model.add(tf.layers.dense({ units: 3 })); 
-                    model.compile({ optimizer: tf.train.adam(0.001), loss: 'categoricalCrossentropy', lossReduction: 'sum' });
+                    model.compile({ optimizer: tf.train.adam(0.0001), loss: 'categoricalCrossentropy' }); // <-- CHANGE HERE
                     return model;
                 }
                 
                 function createLrModel(inputShape) {
                     const model = tf.sequential();
                     model.add(tf.layers.dense({ inputShape: [inputShape], units: 3 }));
-                    model.compile({ optimizer: tf.train.adam(0.001), loss: 'categoricalCrossentropy', lossReduction: 'sum' });
+                    model.compile({ optimizer: tf.train.adam(0.0001), loss: 'categoricalCrossentropy' }); // <-- AND HERE
                     return model;
                 }
             `;
