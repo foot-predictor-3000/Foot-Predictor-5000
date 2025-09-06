@@ -744,13 +744,15 @@
             
             const statsString = `H: ${Math.round(p_h*100)}%, D: ${Math.round(p_d*100)}%, A: ${Math.round(p_a*100)}%`;
             
-            // --- THEMED PROMPT ---
+            // --- THEMED PROMPT (UPDATED FOR ROBUSTNESS) ---
             const prompt = `
             **Persona Instruction:** You are Captain Turfbeard, a gruff, knowledgeable, and slightly comical pirate captain who is also a football expert. Adopt this persona for all text fields in your response. Keep your analysis sharp, but deliver it with pirate flair (e.g., "scurvy dogs," "shiver me timbers," "pieces of eight").
 
             **Task:** Analyze the upcoming football match: ${homeTeam} vs ${awayTeam}.
             The Kraken's statistical model provides a baseline prediction of: ${statsString}.
-            Perform a Google Search for the latest team news, significant player injuries, and current betting odds for this match.
+            Perform a Google Search. Your information MUST be up-to-date. Specifically search for the latest team news, significant player injuries, and current betting odds for this match.
+            
+            **CRITICAL:** When identifying key players, you MUST verify they are currently on the team's active roster for the present-day season. Do not list players who have recently transferred away from the club.
 
             **Output Format:** Respond with a single, valid JSON object with NO MARKDOWN or other text outside the JSON structure. The object must contain these exact keys:
             {
@@ -877,3 +879,5 @@
     </script>
 </body>
 </html>
+
+
