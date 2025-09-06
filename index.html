@@ -21,7 +21,7 @@
         }
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
-    <link rel="manifest" href="data:application/json;base64,ew0KICAic2hvcnRfbmFtZSI6ICJGb290YmFsbFByZWRpY3RvciIsDQogICJuYW1lIjogIk9mZmxpbmUgRm9vdGJhbGwgUHJlZGljdG9yIiwNCiAgImljb25zIjogWw0KICAgIHsNCiAgICAgICJzcmMiOiAiaWNvbnMvaWNvbi0xOTIucG5nIiwNCiAgICAgICJ0eXBlIjogImltYWdlL3BuZyIsDQogICAgICAic2l6ZXMiOiAiMTkyxDE5MiINCiAgICB9LA0KICAgIHsNCiAgICAgICJzcmMiOiAiaWNvbnMvaWNvbi01MTIucG5nIiwNCiAgICAgICJ0eXBlIjogImltYWdlL3BuZyIsDQogICAgICAic2l6ZXMiOiAiNTEyeDUxMiINCiAgICB9DQogIF0sDQogICJzdGFydF91cmwiOiAiLiIsDQogICJkaXNwbGF5IjogInNtandhbG9bmUiLA0KICAidGhlbWVfY29loiOiAiIzAwMDAwMCIsDQogICJiYWNrZ3JvdW5kX2NvbG9yIjogIiNmZmZmZmYiDQp9">
+    <link rel="manifest" href="data:application/json;base64,ew0KICAic2hvcnRfbmFtZSI6ICJGb290YmFsbFByZWRpY3RvciIsDQogICJuYW1lIjogIk9mZmxpbmUgRm9vdGJhbGwgUHJlZGljdG9yIiwNCiAgImljb25zIjogWw0KICAgIHsNCiAgICAgICJzcmMiOiAiaWNvbnMvaWNvbi0xOTIucG5nIiwNCiAgICAgICJ0eXBlIjogImltYWdlL3BuZyIsDQogICAgICAic2l6ZXMiOiAiMTkyxDE5MiINCiAgICB9LA0KICAgIHsNCiAgICAgICJzcmMiOiAiaWNvbnMvaWNvbi01MTIucG5nIiwNCiAgICAgICJ0eXBlIjogImltYWdlL3BuZyIsDQogICAgICAic2l6ZXMiOiAiNTEyeDUxMiINCiAgICB9DQogIF0sDQogICJzdGFydF91cmwiOiAiLiIsDQogICJkaXNwbGF5IjogInNtandhbG9bmUiLA0KICAidGhlbWVfY29loiOiAiIzAwMDAwMCIsDQogICJiYWNrZ3JvdW5k_Y29sb3IiOiAiI2ZmZmZmZiINCn0=">
 
     <style>
         /* Simple loading spinner */
@@ -140,7 +140,7 @@
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 const swCode = `
-                    const CACHE_NAME = 'football-predictor-v33-pirate'; /* Cache version updated */
+                    const CACHE_NAME = 'football-predictor-v35-pirate'; /* Cache version updated */
                     const urlsToCache = ['/'];
                     self.addEventListener('install', event => { self.skipWaiting(); event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(urlsToCache))); });
                     self.addEventListener('activate', event => { const cacheWhitelist = [CACHE_NAME]; event.waitUntil( caches.keys().then(cacheNames => Promise.all( cacheNames.map(cacheName => { if (cacheWhitelist.indexOf(cacheName) === -1) { return caches.delete(cacheName); } }) )).then(() => self.clients.claim()) ); });
@@ -243,6 +243,17 @@
                     });
                     return ratings;
                 }
+                
+                class StatusCallback extends tf.Callback {
+                    constructor(messagePrefix) {
+                        super();
+                        this.messagePrefix = messagePrefix;
+                    }
+                
+                    onEpochEnd(epoch, logs) {
+                        self.postMessage({ type: 'status_update', payload: \`\${this.messagePrefix} \${epoch + 1}/50\` });
+                    }
+                }
 
                 self.onmessage = async (e) => {
                     const { type, payload } = e.data;
@@ -267,15 +278,35 @@
                             nnModel = createNnModel(inputShape);
                             lrModel = createLrModel(inputShape);
                             
+                            const baseTrainingArgs = {
+                                epochs: 50,
+                                batchSize: 32,
+                                validationSplit: 0.1,
+                                verbose: 0,
+                            };
+
                             self.postMessage({ type: 'status_update', payload: 'Kraken learning (NN Training)...' });
-                            await nnModel.fit(features, labels, { epochs: 50, batchSize: 32, validationSplit: 0.1, verbose: 0, callbacks: { onEpochEnd: (epoch) => self.postMessage({ type: 'status_update', payload: 'Kraken learning... Thought ' + (epoch + 1) + '/50' }) } });
+                            // NN Model gets Early Stopping
+                            await nnModel.fit(features, labels, { 
+                                ...baseTrainingArgs, 
+                                callbacks: [
+                                    tf.callbacks.earlyStopping({ monitor: 'val_loss', patience: 5 }),
+                                    new StatusCallback('Kraken learning... Thought')
+                                ] 
+                            });
                             
                             self.postMessage({ type: 'status_update', payload: 'Kraken double-checking charts (LR Training)...' });
-                            await lrModel.fit(features, labels, { epochs: 50, batchSize: 32, validationSplit: 0.1, verbose: 0, callbacks: { onEpochEnd: (epoch) => self.postMessage({ type: 'status_update', payload: 'Checking charts... Tactic ' + (epoch + 1) + '/50' }) } });
+                            // LR Model does NOT get Early Stopping
+                            await lrModel.fit(features, labels, { 
+                                ...baseTrainingArgs, 
+                                callbacks: [
+                                    new StatusCallback('Checking charts... Tactic')
+                                ]
+                            });
                             
                             self.postMessage({ type: 'model_trained' });
                             tf.dispose([features, labels]);
-                        } catch(error) { self.postMessage({ type: 'training_error', payload: error.message }); }
+                        } catch(error) { self.postMessage({ type: 'training_error', payload: error.message + " " + error.stack }); }
                     } else if (type === 'predict') {
                         const { fixture } = payload;
                         try {
@@ -454,14 +485,14 @@
                     model.add(tf.layers.dense({ units: 64, activation: 'relu', kernelRegularizer: tf.regularizers.l2({l2: 0.0001}) }));
                     model.add(tf.layers.dropout({ rate: 0.5 }));
                     model.add(tf.layers.dense({ units: 3 })); 
-                    model.compile({ optimizer: tf.train.adam(0.0001), loss: 'categoricalCrossentropy' }); // <-- CHANGE HERE
+                    model.compile({ optimizer: tf.train.adam(0.0001), loss: 'categoricalCrossentropy' });
                     return model;
                 }
                 
                 function createLrModel(inputShape) {
                     const model = tf.sequential();
                     model.add(tf.layers.dense({ inputShape: [inputShape], units: 3 }));
-                    model.compile({ optimizer: tf.train.adam(0.0001), loss: 'categoricalCrossentropy' }); // <-- AND HERE
+                    model.compile({ optimizer: tf.train.adam(0.0001), loss: 'categoricalCrossentropy' });
                     return model;
                 }
             `;
